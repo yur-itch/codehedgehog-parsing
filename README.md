@@ -38,6 +38,7 @@ detail, etc.) instead of the current stubs.
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium   # only needed for the crawler (crawl.py)
 ```
 
 ## 1. Export your session cookies
@@ -78,14 +79,72 @@ Results are written under `output/` (also gitignored — this is your
 personal academic data, not something to push to a shared repo unless you
 decide otherwise).
 
+## 4. Map the whole site as a graph (optional)
+
+Instead of guessing endpoints one at a time, you can let a headless
+browser click through every link it finds and record what it discovers.
+`crawl.py` does a breadth-first crawl starting from whatever URL(s) you
+give it: it loads each page with your session, records every XHR/fetch/
+document request that fires while the page loads, then follows every
+same-origin `<a href>` link it finds - building up a graph where **nodes
+are distinct pages/content** and **edges are the requests** that produced
+them (labeled with method + status, e.g. `GET 200`).
+
+This assumes navigation has no side effects (per the working assumption
+for this task). As a safety net, the crawler still: only ever issues GET
+navigations itself, never clicks buttons or submits forms, stays
+same-origin, and skips any link whose URL/text matches a denylist
+(logout, delete, remove, drop, reset, unsubscribe, ...). Review
+`DENYLIST_KEYWORDS` in `hits_scraper/crawl.py` and extend it if the site
+uses different wording for destructive actions.
+
+```bash
+python -m hits_scraper.crawl \
+  --cookies cookies.txt \
+  --seed https://code.hits.university/ \
+  --seed https://code.hits.university/tasks \
+  --max-pages 300 \
+  --delay 0.5
+```
+
+- `--seed` can be repeated for multiple starting points (e.g. dashboard,
+  task list, leaderboard) so the crawl covers areas not linked from the
+  homepage.
+- `--delay` is the pause (seconds) between page loads - keep it polite,
+  this hits a real site.
+- `--max-pages` is a hard cap so a runaway pagination loop can't make it
+  crawl forever.
+- Add `--headed` to watch the browser while it works (useful for
+  debugging login/cookie issues).
+
+Output goes to `output/graph.json` (nodes + edges, each edge carrying the
+list of requests observed). Then render it into a single offline HTML
+file you can just open in a browser - no server, no CDN, no network
+needed (the graph library is vendored in `hits_scraper/vendor/`):
+
+```bash
+python -m hits_scraper.render_graph --graph output/graph.json --out output/graph_view.html
+```
+
+Click any node in the graph to see which request(s) produced it and where
+it was reached from.
+
+**Known limitation**: this only follows real `<a href="...">` links. If
+part of the SPA navigates via JS-only click handlers with no real `href`
+(no URL change), the crawler won't discover it - tell me which
+pages/actions those are and I'll add targeted handling.
+
 ## Layout
 
 ```
 hits_scraper/
-  config.py     base URL, headers
-  cookies.py    loads cookies.txt / cookies.json into a dict
-  client.py     builds an authenticated httpx.Client
-  endpoints.py  the actual scraping logic (placeholders for now)
-  save.py       writes JSON / raw HTML under output/
-  cli.py        command-line entry point
+  config.py       base URL, headers
+  cookies.py      loads cookies.txt / cookies.json into a dict
+  client.py       builds an authenticated httpx.Client
+  endpoints.py    the actual scraping logic (placeholders for now)
+  save.py         writes JSON / raw HTML under output/
+  cli.py          command-line entry point (check / fetch / tasks / submissions / leaderboard)
+  crawl.py         Playwright BFS crawler -> output/graph.json (content graph)
+  render_graph.py  turns graph.json into a self-contained offline HTML viewer
+  vendor/          vendored cytoscape.js (MIT) for offline graph rendering
 ```
