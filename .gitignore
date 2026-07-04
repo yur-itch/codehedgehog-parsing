@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Your session/auth data - never commit this
+cookies.txt
+cookies.json
+*.session.json
+
+# Scraped data and raw HAR captures - personal data, keep local
+output/
+har_samples/*
+!har_samples/.gitkeep
