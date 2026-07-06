@@ -1,9 +1,9 @@
 BASE_URL = "https://code.hits.university"
 
-# TODO: fill in once real endpoints are known from a HAR capture.
-# Likely something like f"{BASE_URL}/api/..." - update after inspecting
-# the site's Network tab.
-API_BASE = f"{BASE_URL}/api"
+# Real API lives on separate subdomains (discovered via crawl.py), each
+# serving /api/v1/... - not under BASE_URL/api like originally guessed.
+CLASS_API_BASE = "https://class.code.hits.university/api/v1"
+USER_API_BASE = "https://user.code.hits.university/api/v1"
 
 DEFAULT_HEADERS = {
     "User-Agent": (

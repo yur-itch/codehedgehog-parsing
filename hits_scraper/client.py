@@ -7,11 +7,30 @@ from .cookies import load_cookies
 
 
 def build_client(cookie_file: str) -> httpx.Client:
-    cookies = load_cookies(cookie_file)
+    """Builds an httpx.Client authenticated with the site's JWT.
+
+    The site's own session cookie ("token") is scoped to code.hits.university
+    only, but the real API lives on separate subdomains
+    (class.code.hits.university, user.code.hits.university, ...) and expects
+    the same JWT as an "Authorization: Bearer <token>" header instead of a
+    cookie. So we pull the JWT out of the exported cookie file and send it
+    as a header on every request, rather than relying on cookie-jar domain
+    matching.
+    """
+    cookies = {name: value for name, value, _domain, _path in load_cookies(cookie_file)}
+    token = cookies.get("token")
+    if not token:
+        raise ValueError(
+            "No 'token' cookie found in the cookie file - export cookies "
+            "again while logged into code.hits.university"
+        )
+
+    headers = dict(DEFAULT_HEADERS)
+    headers["Authorization"] = f"Bearer {token}"
+
     client = httpx.Client(
         base_url=BASE_URL,
-        cookies=cookies,
-        headers=DEFAULT_HEADERS,
+        headers=headers,
         follow_redirects=True,
         timeout=30.0,
     )
@@ -19,15 +38,6 @@ def build_client(cookie_file: str) -> httpx.Client:
 
 
 def check_auth(client: httpx.Client) -> bool:
-    """Hits the site root and checks we weren't bounced to a login page.
-
-    This is a coarse sanity check, not a real endpoint - refine once we
-    know the actual "who am I" / profile endpoint.
-    """
-    resp = client.get("/")
-    if resp.status_code >= 400:
-        return False
-    lowered = resp.text.lower()
-    if "login" in resp.url.path.lower():
-        return False
-    return True
+    """Hits the "who am I" endpoint on the user API to confirm the JWT works."""
+    resp = client.get("https://user.code.hits.university/api/v1/user/retrieve")
+    return resp.status_code == 200

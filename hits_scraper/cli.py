@@ -35,22 +35,10 @@ def cmd_fetch(args):
     print(resp.text[:1000])
 
 
-def cmd_tasks(args):
+def cmd_archive(args):
+    """One-pass archive of classes, tasks, and this user's attempts/submissions."""
     client = build_client(args.cookies)
-    tasks = endpoints.fetch_tasks(client)
-    print(f"fetched {len(tasks)} tasks")
-
-
-def cmd_submissions(args):
-    client = build_client(args.cookies)
-    subs = endpoints.fetch_my_submissions(client)
-    print(f"fetched {len(subs)} submissions")
-
-
-def cmd_leaderboard(args):
-    client = build_client(args.cookies)
-    endpoints.fetch_leaderboard(client)
-    print("fetched leaderboard")
+    endpoints.fetch_everything(client)
 
 
 def main():
@@ -64,9 +52,9 @@ def main():
     p_fetch.add_argument("path", help="e.g. /api/tasks")
     p_fetch.set_defaults(func=cmd_fetch)
 
-    sub.add_parser("tasks", help="fetch all tasks").set_defaults(func=cmd_tasks)
-    sub.add_parser("submissions", help="fetch my submissions/attempts").set_defaults(func=cmd_submissions)
-    sub.add_parser("leaderboard", help="fetch the leaderboard").set_defaults(func=cmd_leaderboard)
+    sub.add_parser(
+        "archive", help="fetch all classes/tasks/attempts/submissions for the current user"
+    ).set_defaults(func=cmd_archive)
 
     args = parser.parse_args()
     args.func(args)

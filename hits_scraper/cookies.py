@@ -1,4 +1,12 @@
-"""Load a browser-exported session into a plain {name: value} dict.
+"""Load a browser-exported session into a list of domain-scoped cookies.
+
+The site is split across subdomains (code.hits.university,
+class.code.hits.university, user.code.hits.university, ...) that all read
+the same session cookie(s), scoped with a leading-dot domain like
+".hits.university" or ".code.hits.university". A flat {name: value} dict
+loses that scoping and breaks auth on the API subdomains, so we keep
+(name, value, domain, path) tuples and build a domain-aware httpx.Cookies
+jar in client.py.
 
 Supports two common export formats:
 
@@ -10,7 +18,8 @@ Supports two common export formats:
    or "EditThisCookie":
        [{"name": "session", "value": "abc123", "domain": "...", ...}, ...]
 
-3. Plain JSON object mapping name -> value:
+3. Plain JSON object mapping name -> value (no domain info - applied
+   everywhere as a fallback):
        {"session": "abc123", "csrftoken": "def456"}
 """
 from __future__ import annotations
@@ -18,8 +27,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+Cookie = tuple[str, str, str, str]  # name, value, domain, path
 
-def load_cookies(path: str | Path) -> dict[str, str]:
+
+def load_cookies(path: str | Path) -> list[Cookie]:
     path = Path(path)
     text = path.read_text(encoding="utf-8-sig").strip()
 
@@ -31,23 +42,25 @@ def load_cookies(path: str | Path) -> dict[str, str]:
     return _load_netscape(text)
 
 
-def _load_json(text: str) -> dict[str, str]:
+def _load_json(text: str) -> list[Cookie]:
     data = json.loads(text)
     if isinstance(data, dict):
-        return {str(k): str(v) for k, v in data.items()}
+        return [(str(k), str(v), "", "/") for k, v in data.items()]
     if isinstance(data, list):
-        cookies = {}
+        cookies = []
         for item in data:
             name = item.get("name")
             value = item.get("value")
             if name is not None and value is not None:
-                cookies[name] = value
+                domain = item.get("domain") or ""
+                path = item.get("path") or "/"
+                cookies.append((str(name), str(value), str(domain), str(path)))
         return cookies
     raise ValueError("Unrecognized JSON cookie format")
 
 
-def _load_netscape(text: str) -> dict[str, str]:
-    cookies = {}
+def _load_netscape(text: str) -> list[Cookie]:
+    cookies = []
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -55,8 +68,8 @@ def _load_netscape(text: str) -> dict[str, str]:
         parts = line.split("\t")
         if len(parts) < 7:
             continue
-        _domain, _flag, _path, _secure, _expiry, name, value = parts[:7]
-        cookies[name] = value
+        domain, _flag, path, _secure, _expiry, name, value = parts[:7]
+        cookies.append((name, value, domain, path or "/"))
     if not cookies:
         raise ValueError("No cookies parsed - check the file format")
     return cookies
