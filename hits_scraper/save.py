@@ -12,10 +12,17 @@ def _safe_name(name: str) -> str:
     return name or "item"
 
 
+def json_path(subdir: str, name: str) -> Path:
+    return OUTPUT_ROOT / subdir / f"{_safe_name(name)}.json"
+
+
+def has_json(subdir: str, name: str) -> bool:
+    return json_path(subdir, name).exists()
+
+
 def save_json(subdir: str, name: str, data) -> Path:
-    out_dir = OUTPUT_ROOT / subdir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{_safe_name(name)}.json"
+    out_path = json_path(subdir, name)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return out_path
 

@@ -42,9 +42,12 @@ site's own frontend reads out of the cookie and resends as an
 
 - Re-export `cookies.txt` right before you run `archive`, not way ahead
   of time — a stale token fails with a 401 partway through.
-- `archive` saves data as it goes, so if the token expires mid-run
-  you don't lose what was already fetched, you just re-export and
-  re-run to pick up the rest.
+- Per-item files (task statements, submission source+results, comments)
+  are skipped if already on disk - they're treated as immutable once
+  archived, so a re-run never re-fetches or overwrites them. That means
+  if the token expires mid-run, or access gets cut off entirely, you can
+  just re-export cookies.txt and re-run `archive` later: it picks up only
+  what's missing, and nothing already saved is ever touched or lost.
 
 ## 2. Sanity-check the cookies work
 
